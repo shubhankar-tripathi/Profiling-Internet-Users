@@ -1,0 +1,88 @@
+import os
+import pprint
+import pandas as pd
+import numpy as np
+
+inPath = '/Users/shubhankar/Downloads/InfoSec'
+outPath = '/Users/shubhankar/Downloads/Information Security _ Processed'
+l = os.listdir(inPath)
+
+def getWinFrame(df, win):
+    internetUsage = []
+    df.drop_duplicates(subset=['Real First Packet'],inplace=True)
+    df.sort_values(by= ['Real First Packet'],inplace = True)
+    #df.drop_duplicates(subset=['Real First Packet'],inplace=True)
+    #df.sort_values(by= ['Real First Packet'],inplace = True)
+    items = df['Real First Packet'].values
+    items = map(int,items)
+    index = range(0,len(items))
+    i = 0
+    limit = 0
+    while (i < len(items)):
+        #print('i {} , length of items {}'.format(i,len(items)))
+        limit = items[i] + (win * 1000)
+        Range = (df['Real First Packet'] >= items[i]) & (df['Real First Packet'] < limit)
+        #print(Range)
+        try:
+            idx = items.index(limit)
+        except:
+            #val = min(items, key=lambda x:abs(x-limit))
+            #idx = items.index(val)
+            idx = i
+        wind = df[Range]
+        avg = wind['Internet Usage'].mean()
+        internetUsage.append(avg)
+        if i == idx:
+            i = idx + 1
+        else:
+            i=idx
+    df1 = pd.DataFrame()
+    df1['Average Internet Usage'] = internetUsage
+    return df1
+
+for file in l:
+    pprint.pprint(os.path.basename(file))
+
+    # dataframs from the each user file containing column number 4, 5 and 9
+    df = pd.read_excel(inPath + '/' + file, usecols = [4,5,9])
+
+    # dataframe with columns 'doctets', 'Real First Time Packet', 'Duration', 'doctets/duartion'
+    df['Internet Usage'] = np.where( df['Duration'] == 0, 0, df['doctets/dpkts']/df['Duration'])
+
+    # dataframe with 'doctets' and 'Duration' columns removed
+    df.drop(['doctets/dpkts', 'Duration'], inplace=True, axis=1)
+    epoch = df.iat[0,0]
+    mask = df['Real First Packet'] < 7*24*60*60*1000 + epoch
+
+    # dataframe containing first week of data
+    df_Week1 = df[mask]
+    df_xiang = df[~mask]
+
+    # dataframe containing second week of data
+    df_Week2 = df_xiang[df_xiang['Real First Packet'] < 2*7*24*60*60*1000 + epoch]
+
+    winList = [10, 227, 300]
+    for win in winList:
+
+        df_Week1_W = getWinFrame(df_Week1, win)
+        df_Week2_W = getWinFrame(df_Week2, win)
+        userPath = outPath + '/' + os.path.basename(file)[:-5] + '/';
+        opPath =  userPath + str(win) + '/';
+
+        if not os.path.exists(userPath):
+            os.mkdir(userPath)
+
+        if not os.path.exists(opPath):
+            os.mkdir(opPath)
+
+
+        df_Week1_W.to_csv(opPath + 'week1.csv',',')
+        df_Week2_W.to_csv(opPath + 'week2.csv',',')
+        # print('Week 1 || window = ' +  str(win) +  'secs : ')
+        # pprint.pprint(df_Week1_W)
+        # print('Week 2 || window = ' +  str(win) + 'secs : ')
+        # pprint.pprint(df_Week2_W)
+
+
+
+
